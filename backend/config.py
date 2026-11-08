@@ -41,8 +41,24 @@ def _voice_map() -> dict[str, str]:
         parsed = json.loads(raw)
         return {"A": str(parsed["A"]), "B": str(parsed["B"])}
     if _str("TTS_PROVIDER", "stub").lower() == "openai":
-        return {"A": "coral", "B": "ash"}
+        return {"A": "coral", "B": "verse"}
     return {"A": "stub-voice-a", "B": "stub-voice-b"}
+
+
+_HOST_B_STYLE = (
+    "Sound like a real person talking with a friend, not reading a script: genuinely enthusiastic "
+    "and energized by the ideas, with natural pitch variation, lively pacing, a smile in the voice, "
+    "and relaxed, conversational phrasing. Lean into the surprising points."
+)
+
+
+def _voice_style() -> dict[str, str]:
+    """A standing speaking style per host, put in front of every line's delivery note."""
+    raw = os.getenv("VOICE_STYLE")
+    if raw:
+        parsed = json.loads(raw)
+        return {"A": str(parsed.get("A", "")), "B": str(parsed.get("B", ""))}
+    return {"A": "", "B": _HOST_B_STYLE}
 
 
 @dataclass
@@ -81,6 +97,7 @@ class Settings:
     # Audio
     TTS_PROVIDER: str = field(default_factory=lambda: _str("TTS_PROVIDER", "stub"))
     VOICE_MAP: dict[str, str] = field(default_factory=_voice_map)
+    VOICE_STYLE: dict[str, str] = field(default_factory=_voice_style)
     OPENAI_TTS_MODEL: str = field(default_factory=lambda: _str("OPENAI_TTS_MODEL", "gpt-4o-mini-tts"))
     TURN_PAUSE_MS: int = 350
     TTS_CHUNK_CHARS: int = 400

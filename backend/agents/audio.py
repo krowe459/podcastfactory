@@ -262,16 +262,25 @@ def chunk_for_tts(text: str, limit: int | None = None) -> list[str]:
 # ------------------------------------------------------------------- pipeline
 
 
+def combine_delivery(style: str, note: str) -> str:
+    """Host's standing style first, then this line's note."""
+    style, note = style.strip(), note.strip()
+    if style and note:
+        return f"{style.rstrip('.')}. For this line: {note}"
+    return style or note
+
+
 def produce_audio(turns: list[DialogueTurn], job_id: str, provider: TTSProvider | None = None) -> Path:
     provider = provider or get_provider()
     pause = AudioSegment.silent(duration=settings.TURN_PAUSE_MS)
     episode = AudioSegment.silent(duration=0)
     for i, turn in enumerate(turns):
         voice = settings.VOICE_MAP[turn.host]
+        delivery = combine_delivery(settings.VOICE_STYLE.get(turn.host, ""), turn.delivery_instruction)
         spoken = normalize_for_speech(turn.text)
         segment = AudioSegment.silent(duration=0)
         for chunk in chunk_for_tts(spoken, provider.max_chunk_chars):
-            segment += provider.synthesize(chunk, voice, turn.delivery_instruction)
+            segment += provider.synthesize(chunk, voice, delivery)
         if i:
             episode += pause
         episode += segment

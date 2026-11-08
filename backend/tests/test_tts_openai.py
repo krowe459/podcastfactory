@@ -61,3 +61,9 @@ def test_missing_key(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(audio.TTSError, match="OPENAI_API_KEY"):
         audio.OpenAITTSProvider()
+
+
+def test_combine_delivery():
+    assert audio.combine_delivery("Enthusiastic.", "measured") == "Enthusiastic. For this line: measured"
+    assert audio.combine_delivery("", "measured") == "measured"
+    assert audio.combine_delivery("Lively", "") == "Lively"
