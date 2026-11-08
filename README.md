@@ -216,3 +216,7 @@ Have a person check the episode against the source, using the test plan in the d
 - length
 - listenability
 - usefulness
+
+## License
+
+[MIT](LICENSE)
