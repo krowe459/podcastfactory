@@ -48,7 +48,7 @@ def _voice_map() -> dict[str, str]:
 @dataclass
 class Settings:
     # Pipeline
-    WORDS_PER_MINUTE: int = field(default_factory=lambda: _int("WORDS_PER_MINUTE", 150))
+    WORDS_PER_MINUTE: int = field(default_factory=lambda: _int("WORDS_PER_MINUTE", 135))
     DURATION_TOLERANCE: float = field(default_factory=lambda: _float("DURATION_TOLERANCE", 0.10))
     MAX_REVISIONS: int = field(default_factory=lambda: _int("MAX_REVISIONS", 2))
     MAX_SOURCE_CHARS: int = field(default_factory=lambda: _int("MAX_SOURCE_CHARS", 120000))

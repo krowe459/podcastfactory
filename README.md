@@ -149,7 +149,7 @@ sends `: keep-alive` comments every 15 s.
 
 All settings are in `backend/config.py` and can be overridden in `backend/.env` (see `.env.example`).
 
-- **Pipeline:** `WORDS_PER_MINUTE=150`, `DURATION_TOLERANCE=0.10`, `MAX_REVISIONS=2`,
+- **Pipeline:** `WORDS_PER_MINUTE=135`, `DURATION_TOLERANCE=0.10`, `MAX_REVISIONS=2`,
   `MAX_SOURCE_CHARS=120000`, `CHUNK_CHARS=30000`, `MAX_TURNS_PER_SECTION=30`,
   `INCLUDE_SOURCE_IN_HOST_CONTEXT=true`
 - **LLM:** `ANTHROPIC_MODEL` (default `claude-opus-5-5`), `PRODUCER_EFFORT` (default `high`),
@@ -205,7 +205,7 @@ input. To trade quality for cost, lower `HOST_EFFORT`, or switch `ANTHROPIC_MODE
    code rescales them proportionally. A revision can't drop a must-cover point; any dropped point is
    restored.
 8. **Prompt placeholders** are filled with a small `{{name}}` regex substitution. The prompts contain
-   literal JSON braces, which `str.format` would break on. Agent 1's "x 150" uses
+   literal JSON braces, which `str.format` would break on. Agent 1's "x words per minute" uses
    `{{words_per_minute}}` so it stays correct if the setting changes.
 9. **Long sources.** Sources over `MAX_SOURCE_CHARS` are chunked for Agent 1 and are not sent to the
    hosts; the hosts rely on the key points. Shorter sources are sent to the hosts in a cached block
