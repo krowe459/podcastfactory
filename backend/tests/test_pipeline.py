@@ -199,7 +199,7 @@ def test_bad_input_becomes_error_event(client, monkeypatch, form, files, expect)
 
 def test_llm_failure_becomes_error_event(client, monkeypatch):
     def boom(*a, **k):
-        raise llm.LLMError("The LLM provider rejected the API key. Check ANTHROPIC_API_KEY.")
+        raise llm.LLMError("The LLM provider rejected the API key. Check ANTHROPIC_API_KEY (or PODCASTFACTORY_ANTHROPIC_KEY).")
 
     monkeypatch.setattr(llm, "call_structured", boom)
     events = _events(client.post("/api/generate-podcast", data={"text": SOURCE}))

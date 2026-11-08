@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from typing import Optional, TypeVar
 
@@ -23,10 +24,15 @@ class LLMError(RuntimeError):
     """A readable failure from the LLM layer (shown to the user)."""
 
 
+def _api_key() -> Optional[str]:
+    """ANTHROPIC_API_KEY wins; PODCASTFACTORY_ANTHROPIC_KEY is the fallback."""
+    return os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("PODCASTFACTORY_ANTHROPIC_KEY") or None
+
+
 def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(max_retries=3)
+        _client = anthropic.Anthropic(api_key=_api_key(), max_retries=3)
     return _client
 
 
@@ -69,7 +75,7 @@ def _request(
         with client.beta.messages.stream(**kwargs) as stream:
             message = stream.get_final_message()
     except anthropic.AuthenticationError as exc:
-        raise LLMError("The LLM provider rejected the API key. Check ANTHROPIC_API_KEY.") from exc
+        raise LLMError("The LLM provider rejected the API key. Check ANTHROPIC_API_KEY (or PODCASTFACTORY_ANTHROPIC_KEY).") from exc
     except anthropic.PermissionDeniedError as exc:
         raise LLMError(f"The LLM provider denied the request: {exc.message}") from exc
     except anthropic.NotFoundError as exc:
