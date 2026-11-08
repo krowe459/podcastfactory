@@ -20,6 +20,35 @@ def _clean(text: str) -> str:
     return text.strip()
 
 
+# Some PDFs (fonts with OpenType variants such as lining figures or small caps) make pypdf emit
+# raw glyph names like "/two.lnum" or "/e.sc" instead of characters. Map them back.
+_GLYPH_CHARS = {
+    "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4",
+    "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9",
+    "period": ".", "comma": ",", "colon": ":", "semicolon": ";", "hyphen": "-",
+    "endash": "–", "emdash": "—", "percent": "%", "dollar": "$",
+    "parenleft": "(", "parenright": ")", "bracketleft": "[", "bracketright": "]",
+    "slash": "/", "ampersand": "&", "plus": "+", "numbersign": "#",
+    "quoteright": "’", "quoteleft": "‘", "quotedblleft": "“",
+    "quotedblright": "”", "exclam": "!", "question": "?", "space": " ",
+}
+_GLYPH_NAME = re.compile(
+    r"/([A-Za-z]+)\.(?:lnum|onum|tnum|pnum|sc|smcp|c2sc|sups|subs|sinf|numr|dnom|case|alt|ss\d\d)"
+)
+
+
+def _fix_glyph_names(text: str) -> str:
+    def repl(m: re.Match) -> str:
+        name = m.group(1)
+        if name in _GLYPH_CHARS:
+            return _GLYPH_CHARS[name]
+        if len(name) == 1:
+            return name
+        return m.group(0)
+
+    return _GLYPH_NAME.sub(repl, text)
+
+
 def _parse_pdf(data: bytes) -> str:
     from pypdf import PdfReader
 
@@ -32,7 +61,7 @@ def _parse_pdf(data: bytes) -> str:
                 raise InputError("This PDF is password-protected.") from exc
         parts = []
         for i, page in enumerate(reader.pages, start=1):
-            page_text = (page.extract_text() or "").strip()
+            page_text = _fix_glyph_names(page.extract_text() or "").strip()
             if page_text:
                 parts.append(f"[Page {i}]\n{page_text}")
     except InputError:

@@ -274,3 +274,10 @@ def test_source_chunking_respects_limit():
     chunks = split_into_chunks(text, 5000)
     assert len(chunks) > 1
     assert all(len(c) <= 5000 for c in chunks)
+
+
+def test_pdf_glyph_names_are_mapped_to_characters():
+    from parsing import _fix_glyph_names
+
+    raw = "November /two.lnum/zero.lnum/two.lnum/five.lnum, /seven.lnum/six.lnum/period.lnum/five.lnum% of /a.sc/i.sc; /foo.bar stays"
+    assert _fix_glyph_names(raw) == "November 2025, 76.5% of ai; /foo.bar stays"
