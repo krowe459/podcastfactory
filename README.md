@@ -156,7 +156,13 @@ All settings are in `backend/config.py` and can be overridden in `backend/.env` 
   `HOST_EFFORT` (default `medium`), `ANTHROPIC_FALLBACKS` (default `default`; server-side fallback
   if the model declines a request; set to `off` to disable)
 - **Content:** `COURSE_NAME`, `HOST_A_NAME`, `HOST_B_NAME`, `INCLUDE_CLOSING_DISCLAIMER`
-- **Audio:** `TTS_PROVIDER=stub`, `VOICE_MAP={"A": "...", "B": "..."}`
+- **Audio:** `TTS_PROVIDER` (`stub` or `openai`), `VOICE_MAP={"A": "...", "B": "..."}`
+  (defaults to `coral`/`ash` for `openai`), `OPENAI_TTS_MODEL` (default `gpt-4o-mini-tts`)
+
+**OpenAI speech.** Set `TTS_PROVIDER=openai` and `OPENAI_API_KEY`. Each turn's delivery
+instruction is passed to the model as its speaking style. Every job also saves
+`output/<job_id>.script.json`, so an episode can be re-voiced without new LLM calls:
+`python regenerate_audio.py <job_id>` (older jobs without the JSON are parsed from the transcript).
 
 **Adding a real TTS vendor.** Subclass `TTSProvider` in `agents/audio.py`, implement
 `synthesize(text, voice_id, delivery_instruction) -> AudioSegment`, and register it in `PROVIDERS`.

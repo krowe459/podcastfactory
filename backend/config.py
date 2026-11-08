@@ -40,7 +40,8 @@ def _voice_map() -> dict[str, str]:
     if raw:
         parsed = json.loads(raw)
         return {"A": str(parsed["A"]), "B": str(parsed["B"])}
-    # [TEAM DECISION] replace with real voice ids once a TTS vendor is chosen.
+    if _str("TTS_PROVIDER", "stub").lower() == "openai":
+        return {"A": "coral", "B": "ash"}
     return {"A": "stub-voice-a", "B": "stub-voice-b"}
 
 
@@ -80,6 +81,7 @@ class Settings:
     # Audio
     TTS_PROVIDER: str = field(default_factory=lambda: _str("TTS_PROVIDER", "stub"))
     VOICE_MAP: dict[str, str] = field(default_factory=_voice_map)
+    OPENAI_TTS_MODEL: str = field(default_factory=lambda: _str("OPENAI_TTS_MODEL", "gpt-4o-mini-tts"))
     TURN_PAUSE_MS: int = 350
     TTS_CHUNK_CHARS: int = 400
 
