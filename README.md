@@ -1,5 +1,7 @@
 # PodcastFactory
 
+[![CI](https://github.com/krowe459/podcastfactory/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/krowe459/podcastfactory/actions/workflows/ci.yml)
+
 Turns an assigned reading (case study, article, book chapter, or slide deck) into a two-host
 podcast for Executive MBA students. It also reports which must-cover ideas the episode addressed.
 
