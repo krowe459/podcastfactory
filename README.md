@@ -197,7 +197,10 @@ input. To trade quality for cost, lower `HOST_EFFORT`, or switch `ANTHROPIC_MODE
      row, including across section breaks and after coverage repairs.
    - Host A opens every section; Host B closes every non-final section with a short hand-off.
      If Host A would otherwise close, Host A gets one brief wrap-up turn first.
-   - A section can't close until both hosts have spoken.
+   - Both hosts are heard in every section; Host B's closing turn counts, so a short section can
+     be just two turns.
+   - Each section's word budget reserves room for every turn still needed to close (two when a
+     Host A wrap-up is required), sized like the section's turns so far.
    - The orchestrator decides the speaker, never the model.
 5. **Closing turns.** Every section ends with an explicit closing turn. In non-final sections it is a
    bridge to the next section's title. In the outro it closes the episode. Section end checks reserve

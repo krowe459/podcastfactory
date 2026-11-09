@@ -163,15 +163,21 @@ class Orchestrator:
         while True:
             n = len(state.turns)
             context = preceding + state.turns
-            projected = state.words + BRIDGE_RESERVE_WORDS
+            # A non-final section must close on Host B so Host A can open the next one without
+            # speaking twice. If Host A would speak next, closing takes two more turns (a brief
+            # Host A wrap-up, then Host B's bridge), so reserve room for both, each sized like
+            # this section's turns so far.
+            closer_ok = next_section is None or self._next_speaker(context) == "B"
+            turns_to_close = 1 if closer_ok else 2
+            per_turn = max(BRIDGE_RESERVE_WORDS, state.words / n) if n else BRIDGE_RESERVE_WORDS
+            projected = state.words + turns_to_close * per_turn
             done = (must <= state.covered and projected >= 0.85 * budget) or projected >= 1.10 * budget
             last_slot = n >= settings.MAX_TURNS_PER_SECTION - 1
-            both_spoke = {t.host for t in state.turns} == {"A", "B"}
-            # A non-final section must close on Host B so Host A can open the next one without
-            # speaking twice; if Host A would close, Host A first gets one short wrap-up turn.
-            closer_ok = next_section is None or self._next_speaker(context) == "B"
-            if n > 0 and ((done and both_spoke) or last_slot) and closer_ok:
-                speaker = self._next_speaker(context)
+            # Both hosts must be heard by the end of the section; the closing turn counts.
+            closer = self._next_speaker(context)
+            both_heard = {t.host for t in state.turns} | {closer} == {"A", "B"}
+            if n > 0 and ((done and both_heard) or last_slot) and closer_ok:
+                speaker = closer
                 instruction = self._closing_instruction(next_section)
                 turn = self._turn(speaker, section, next_section, state, context, instruction)
                 state.turns.append(turn)
@@ -185,7 +191,7 @@ class Orchestrator:
                     else prompts.INSTRUCTION_OPEN_SECTION
                 )
             elif (must <= state.covered and (budget - state.words) < 0.15 * budget) or (
-                (done and both_spoke) or last_slot
+                (done and both_heard) or last_slot
             ):
                 instruction = prompts.INSTRUCTION_WRAP_UP
             else:

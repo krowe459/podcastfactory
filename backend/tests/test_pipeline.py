@@ -14,6 +14,7 @@ from agents import audio
 from config import settings
 from contracts import STATUS_VALUES, HostTurnOutput, ProductionPlan, StreamEvent
 from parsing import split_into_chunks
+from textutil import count_words
 
 SOURCE = (
     "# Pricing Power in Platform Markets\n\nBy Jane Rivera.\n\n"
@@ -134,12 +135,12 @@ def test_full_run_completes_with_coverage(client, monkeypatch):
     assert job_id in data["transcript_url"]
 
 
-def _run_orchestrator(monkeypatch, fake):
+def _run_orchestrator(monkeypatch, fake, minutes: int = 5):
     import pipeline
 
     monkeypatch.setattr(llm, "call_structured", fake)
     events: list[StreamEvent] = []
-    job = pipeline.JobInput(job_id="0" * 32, source_text=SOURCE, target_minutes=5)
+    job = pipeline.JobInput(job_id="0" * 32, source_text=SOURCE, target_minutes=minutes)
     orch = pipeline.Orchestrator(job, pipeline.Emitter(events.append))
     orch.run()
     assert events[-1].status == "complete"
@@ -320,3 +321,14 @@ def test_pdf_page_markers_follow_printed_numbers():
     assert _printed_page_offset(same) == 0
     # Too few numbered pages: fall back to PDF positions.
     assert _printed_page_offset(["a", "b", "3 Header\ntext", "d", "e", "f", "g", "h"]) == 0
+
+
+def test_strict_alternation_keeps_scripts_near_budget(monkeypatch):
+    # Closing on Host B can cost an extra wrap-up turn; the budget must reserve room for it
+    # so alternation doesn't push episodes well past their target length. (At 10 minutes,
+    # 60-word turns are fine-grained enough that the budget, not turn size, decides length.)
+    orch = _run_orchestrator(monkeypatch, FakeLLM(turn_words=60), minutes=10)
+    total = sum(count_words(t.text) for t in orch.script())
+    budget = sum(s.word_budget for s in orch.plan.sections)
+    assert total <= (1 + settings.DURATION_TOLERANCE) * budget, f"{total} words vs {budget} budget"
+    _assert_strict_alternation(orch)
