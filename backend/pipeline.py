@@ -29,7 +29,6 @@ from transcript import write_transcript
 log = logging.getLogger("podcastfactory.pipeline")
 
 RECENT_TURNS = 8
-MAX_CONSECUTIVE_SAME_HOST = 3
 BRIDGE_RESERVE_WORDS = 35  # leave room for the closing/bridge turn inside the budget
 REPAIR_TURNS_PER_POINT = 2
 SECTION_DEVIATION_FOR_REGEN = 0.10
@@ -110,17 +109,19 @@ class Orchestrator:
         return {k.id for k in section.key_points if k.priority == "must_cover"}
 
     @staticmethod
-    def _next_speaker(turns: list[DialogueTurn], preferred: Optional[str] = None) -> str:
-        """Host A opens every section; then A frames/asks and B supplies substance, alternating
-        so A can reply with a translation or implication and B can refine. A host is never
-        skipped for more than MAX_CONSECUTIVE_SAME_HOST turns."""
+    def _next_speaker(turns: list[DialogueTurn]) -> str:
+        """Hosts strictly alternate across the whole episode, so no host ever speaks twice in a
+        row (not even across a section break). Host A speaks first; because Host B closes every
+        non-final section, Host A also opens every section."""
         if not turns:
             return "A"
-        speaker = preferred or ("B" if turns[-1].host == "A" else "A")
-        tail = turns[-MAX_CONSECUTIVE_SAME_HOST:]
-        if len(tail) == MAX_CONSECUTIVE_SAME_HOST and all(t.host == speaker for t in tail):
-            speaker = "B" if speaker == "A" else "A"
-        return speaker
+        return "B" if turns[-1].host == "A" else "A"
+
+    @staticmethod
+    def _closing_instruction(next_section: Optional[Section]) -> str:
+        if next_section is not None:
+            return prompts.fill(prompts.INSTRUCTION_BRIDGE, next_section__title=next_section.title)
+        return prompts.INSTRUCTION_CLOSE_EPISODE
 
     def _turn(
         self,
@@ -166,14 +167,12 @@ class Orchestrator:
             done = (must <= state.covered and projected >= 0.85 * budget) or projected >= 1.10 * budget
             last_slot = n >= settings.MAX_TURNS_PER_SECTION - 1
             both_spoke = {t.host for t in state.turns} == {"A", "B"}
-            if n > 0 and ((done and both_spoke) or last_slot):
-                speaker = self._next_speaker(state.turns, preferred="A")
-                if next_section is not None:
-                    instruction = prompts.fill(
-                        prompts.INSTRUCTION_BRIDGE, next_section__title=next_section.title
-                    )
-                else:
-                    instruction = prompts.INSTRUCTION_CLOSE_EPISODE
+            # A non-final section must close on Host B so Host A can open the next one without
+            # speaking twice; if Host A would close, Host A first gets one short wrap-up turn.
+            closer_ok = next_section is None or self._next_speaker(context) == "B"
+            if n > 0 and ((done and both_spoke) or last_slot) and closer_ok:
+                speaker = self._next_speaker(context)
+                instruction = self._closing_instruction(next_section)
                 turn = self._turn(speaker, section, next_section, state, context, instruction)
                 state.turns.append(turn)
                 on_turn(len(state.turns))
@@ -185,11 +184,13 @@ class Orchestrator:
                     if section.role == "body"
                     else prompts.INSTRUCTION_OPEN_SECTION
                 )
-            elif must <= state.covered and (budget - state.words) < 0.15 * budget:
+            elif (must <= state.covered and (budget - state.words) < 0.15 * budget) or (
+                (done and both_spoke) or last_slot
+            ):
                 instruction = prompts.INSTRUCTION_WRAP_UP
             else:
                 instruction = prompts.INSTRUCTION_DEFAULT
-            speaker = self._next_speaker(state.turns)
+            speaker = self._next_speaker(context)
             turn = self._turn(speaker, section, next_section, state, context, instruction)
             state.turns.append(turn)
             state.words += count_words(turn.text)
@@ -331,12 +332,21 @@ class Orchestrator:
                     missing_key_points="; ".join(f"[{k.id}] {k.text}" for k in still),
                 )
                 context = preceding + head + added
-                speaker = self._next_speaker(head + added, preferred="B" if not added else None)
+                speaker = self._next_speaker(context)
                 turn = self._turn(speaker, section, next_section, state, context, instruction)
                 added.append(turn)
                 state.words += count_words(turn.text)
                 state.covered.update(turn.covers)
                 outstanding -= set(turn.covers)
+            if added and closing and added[-1].host == closing[0].host:
+                # Keep strict alternation into the existing closing turn with a brief wrap-up.
+                context = preceding + head + added
+                speaker = self._next_speaker(context)
+                turn = self._turn(
+                    speaker, section, next_section, state, context, prompts.INSTRUCTION_WRAP_UP
+                )
+                added.append(turn)
+                state.covered.update(turn.covers)
             self.section_turns[section.id] = head + added + closing
 
     def coverage_report(self) -> CoverageReport:

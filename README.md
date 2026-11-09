@@ -193,12 +193,12 @@ input. To trade quality for cost, lower `HOST_EFFORT`, or switch `ANTHROPIC_MODE
 3. **`CoverageReport.missing_points`** (id → text) was added so the UI can list missed ideas in plain
    words. Both contract files include it.
 4. **Speaker choice.**
-   - Host A opens every section.
-   - After that, hosts alternate: A frames or asks, B supplies substance, A replies with an
-     implication, B refines.
+   - Hosts strictly alternate across the whole episode, so neither host ever speaks twice in a
+     row, including across section breaks and after coverage repairs.
+   - Host A opens every section; Host B closes every non-final section with a short hand-off.
+     If Host A would otherwise close, Host A gets one brief wrap-up turn first.
    - A section can't close until both hosts have spoken.
-   - The orchestrator decides the speaker, so neither host can be skipped. One host never speaks
-     more than 3 turns in a row.
+   - The orchestrator decides the speaker, never the model.
 5. **Closing turns.** Every section ends with an explicit closing turn. In non-final sections it is a
    bridge to the next section's title. In the outro it closes the episode. Section end checks reserve
    about 35 words for that turn.

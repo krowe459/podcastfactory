@@ -134,24 +134,49 @@ def test_full_run_completes_with_coverage(client, monkeypatch):
     assert job_id in data["transcript_url"]
 
 
-def test_every_section_opens_with_host_a_and_alternates(monkeypatch):
+def _run_orchestrator(monkeypatch, fake):
     import pipeline
 
-    fake = FakeLLM()
     monkeypatch.setattr(llm, "call_structured", fake)
     events: list[StreamEvent] = []
     job = pipeline.JobInput(job_id="0" * 32, source_text=SOURCE, target_minutes=5)
     orch = pipeline.Orchestrator(job, pipeline.Emitter(events.append))
     orch.run()
+    assert events[-1].status == "complete"
+    return orch
+
+
+def _assert_strict_alternation(orch):
     for section in orch.plan.sections:
         turns = orch.section_turns[section.id]
-        assert turns[0].host == "A"
+        assert turns[0].host == "A", f"{section.id} must open with Host A"
         assert {t.host for t in turns} == {"A", "B"}, f"{section.id} must hear from both hosts"
-        run = 1
-        for a, b in zip(turns, turns[1:]):
-            run = run + 1 if a.host == b.host else 1
-            assert run <= 3
-    assert events[-1].status == "complete"
+    script = orch.script()
+    for i, (a, b) in enumerate(zip(script, script[1:])):
+        assert a.host != b.host, f"turns {i} and {i + 1} are both Host {a.host}"
+
+
+@pytest.mark.parametrize("turn_words", [40, 55, 85])
+def test_hosts_strictly_alternate_across_the_episode(monkeypatch, turn_words):
+    # Different turn lengths change where sections end, exercising the wrap-up path too.
+    _assert_strict_alternation(_run_orchestrator(monkeypatch, FakeLLM(turn_words=turn_words)))
+
+
+def test_hosts_alternate_after_coverage_repair(monkeypatch):
+    # The first pass skips a must-cover point, so repair turns are inserted mid-section.
+    class SkipOnce(FakeLLM):
+        repaired = False
+
+        def __call__(self, system, user, response_model, **kw):
+            if "Repair:" in user:
+                self.skip_ids = set()
+                self.repaired = True
+            return super().__call__(system, user, response_model, **kw)
+
+    fake = SkipOnce(skip_ids={"s2-k1"})
+    orch = _run_orchestrator(monkeypatch, fake)
+    assert fake.repaired, "repair path must run"
+    _assert_strict_alternation(orch)
 
 
 def test_revision_loop_runs_and_is_capped(client, monkeypatch):
@@ -281,3 +306,17 @@ def test_pdf_glyph_names_are_mapped_to_characters():
 
     raw = "November /two.lnum/zero.lnum/two.lnum/five.lnum, /seven.lnum/six.lnum/period.lnum/five.lnum% of /a.sc/i.sc; /foo.bar stays"
     assert _fix_glyph_names(raw) == "November 2025, 76.5% of ai; /foo.bar stays"
+
+
+def test_pdf_page_markers_follow_printed_numbers():
+    from parsing import _printed_page_offset
+
+    # Cover and front matter push printed folios four pages behind the PDF's own count.
+    front = ["Cover title", "AUTHORS\nSomeone", "CONTENTS\n1 Introduction", "Foreword text"]
+    body = [f"{n} MIT SLOAN MANAGEMENT REVIEW\nBody text for page {n}." for n in range(1, 9)]
+    assert _printed_page_offset(front + body) == -4
+    # Folios that already match PDF positions keep offset 0.
+    same = [f"Body {i}\nModule 1 · Governance {i}" for i in range(1, 9)]
+    assert _printed_page_offset(same) == 0
+    # Too few numbered pages: fall back to PDF positions.
+    assert _printed_page_offset(["a", "b", "3 Header\ntext", "d", "e", "f", "g", "h"]) == 0
