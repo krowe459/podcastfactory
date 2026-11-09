@@ -49,6 +49,60 @@ def _fix_glyph_names(text: str) -> str:
     return _GLYPH_NAME.sub(repl, text)
 
 
+# A printed page number sits alone in a header/footer line, or at either end of a running head
+# ("2 MIT SLOAN MANAGEMENT REVIEW", "Module 1 · Value Realization 6", "3The state of AI ...").
+_FOLIO_PATTERNS = (
+    re.compile(r"^(\d{1,3})$"),
+    re.compile(r"^(\d{1,3})(?=\s*[A-Za-z])"),
+    re.compile(r"(?<=[A-Za-z.,;:)])\s+(\d{1,3})$"),
+)
+_MAX_FOLIO_OFFSET = 12
+
+
+def _printed_page_offset(page_texts: list[str]) -> int:
+    """How far printed page numbers sit from PDF page positions (printed = position + offset).
+
+    Covers and front matter usually push printed numbers behind the PDF's own count, so a
+    reference to "page 14" would not match the "13" printed on that page. Each page votes for
+    the offsets its header/footer numbers imply; an offset is trusted only when enough pages
+    agree, otherwise 0 (PDF positions) is kept."""
+    votes: dict[int, int] = {}
+    numbered = 0
+    for position, text in enumerate(page_texts, start=1):
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        edge = lines[:2] + lines[-2:]
+        offsets = set()
+        for line in edge:
+            for pattern in _FOLIO_PATTERNS:
+                m = pattern.search(line)
+                if m and int(m.group(1)) >= 1:
+                    offset = int(m.group(1)) - position
+                    if abs(offset) <= _MAX_FOLIO_OFFSET:
+                        offsets.add(offset)
+        numbered += bool(offsets)
+        for offset in offsets:
+            votes[offset] = votes.get(offset, 0) + 1
+    if not votes:
+        return 0
+    best, count = max(votes.items(), key=lambda kv: (kv[1], kv[0] == 0))
+    if count >= 3 and count >= 0.4 * len(page_texts):
+        return best
+    return 0
+
+
+def _page_markers(reader, page_texts: list[str]) -> list[str]:
+    """Marker per page, using the numbers printed on the pages so source references match them."""
+    root = reader.trailer["/Root"]
+    if "/PageLabels" in root:
+        return [f"[Page {label}]" for label in reader.page_labels]
+    offset = _printed_page_offset(page_texts)
+    markers = []
+    for position in range(1, len(page_texts) + 1):
+        printed = position + offset
+        markers.append(f"[Page {printed}]" if printed >= 1 else f"[Unnumbered page {position} of the PDF]")
+    return markers
+
+
 def _parse_pdf(data: bytes) -> str:
     from pypdf import PdfReader
 
@@ -59,11 +113,9 @@ def _parse_pdf(data: bytes) -> str:
                 reader.decrypt("")
             except Exception as exc:  # noqa: BLE001
                 raise InputError("This PDF is password-protected.") from exc
-        parts = []
-        for i, page in enumerate(reader.pages, start=1):
-            page_text = _fix_glyph_names(page.extract_text() or "").strip()
-            if page_text:
-                parts.append(f"[Page {i}]\n{page_text}")
+        texts = [_fix_glyph_names(page.extract_text() or "").strip() for page in reader.pages]
+        markers = _page_markers(reader, texts)
+        parts = [f"{marker}\n{text}" for marker, text in zip(markers, texts) if text]
     except InputError:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -177,7 +229,7 @@ def build_source_text(filename: str | None, data: bytes | None, pasted: str | No
     return text
 
 
-_HEADING = re.compile(r"^(#{1,6} |\[Page \d+\]|\[Slide \d+\])", re.M)
+_HEADING = re.compile(r"^(#{1,6} |\[Page [^\]]+\]|\[Unnumbered page \d+[^\]]*\]|\[Slide \d+\])", re.M)
 
 
 def split_into_chunks(text: str, chunk_chars: int) -> list[str]:
