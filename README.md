@@ -157,7 +157,8 @@ All settings are in `backend/config.py` and can be overridden in `backend/.env` 
   if the model declines a request; set to `off` to disable)
 - **Content:** `COURSE_NAME`, `HOST_A_NAME`, `HOST_B_NAME`, `INCLUDE_CLOSING_DISCLAIMER`
 - **Audio:** `TTS_PROVIDER` (`stub` or `openai`), `VOICE_MAP={"A": "...", "B": "..."}`
-  (defaults to `coral`/`verse` for `openai`), `OPENAI_TTS_MODEL` (default `gpt-4o-mini-tts`),
+  (defaults to `coral`/`verse` for `openai`), `OPENAI_TTS_MODEL` (default `gpt-4o-mini-tts`), `OPENAI_TTS_SPEED`
+  (default `1.0`, about 133 words per minute; set about `1.13` if `WORDS_PER_MINUTE=150`),
   `VOICE_STYLE={"A": "...", "B": "..."}` (a standing speaking style put in front of every line's
   delivery note; by default Host B is told to sound conversational and enthusiastic)
 

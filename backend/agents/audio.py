@@ -76,6 +76,8 @@ class OpenAITTSProvider(TTSProvider):
             "input": text,
             "response_format": "mp3",
         }
+        if settings.OPENAI_TTS_SPEED != 1.0:
+            body["speed"] = settings.OPENAI_TTS_SPEED
         if delivery_instruction:
             body["instructions"] = delivery_instruction
         for attempt in range(5):
