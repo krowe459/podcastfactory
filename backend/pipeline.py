@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import Callable, Optional
@@ -390,6 +391,11 @@ class Orchestrator:
             turn.covers = [c for c in turn.covers if c in valid]
         coverage = self.coverage_report()
 
+        # Save the script first so a failed voice pass can be redone without the LLM.
+        script_path = settings.OUTPUT_DIR / f"{job.job_id}.script.json"
+        script_path.write_text(
+            json.dumps([t.model_dump() for t in self.script()], indent=1), encoding="utf-8"
+        )
         provider = audio.get_provider()
         self.emit("synthesizing_audio", "Producing audio...")
         audio.produce_audio(self.script(), job.job_id, provider)
@@ -416,7 +422,7 @@ def run_job(job: JobInput, sink: Callable[[StreamEvent], None]) -> None:
         Orchestrator(job, emit).run()
     except Cancelled:
         log.info("Job %s cancelled by client disconnect", job.job_id)
-    except (InputError, LLMError) as exc:
+    except (InputError, LLMError, audio.TTSError) as exc:
         emit("error", str(exc), data=ErrorData(detail=str(exc)).model_dump())
     except Exception as exc:  # noqa: BLE001 - every failure must become an error event
         log.exception("Job %s failed", job.job_id)

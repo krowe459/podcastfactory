@@ -149,14 +149,22 @@ sends `: keep-alive` comments every 15 s.
 
 All settings are in `backend/config.py` and can be overridden in `backend/.env` (see `.env.example`).
 
-- **Pipeline:** `WORDS_PER_MINUTE=150`, `DURATION_TOLERANCE=0.10`, `MAX_REVISIONS=2`,
+- **Pipeline:** `WORDS_PER_MINUTE=135`, `DURATION_TOLERANCE=0.10`, `MAX_REVISIONS=2`,
   `MAX_SOURCE_CHARS=120000`, `CHUNK_CHARS=30000`, `MAX_TURNS_PER_SECTION=30`,
   `INCLUDE_SOURCE_IN_HOST_CONTEXT=true`
 - **LLM:** `ANTHROPIC_MODEL` (default `claude-opus-5-5`), `PRODUCER_EFFORT` (default `high`),
   `HOST_EFFORT` (default `medium`), `ANTHROPIC_FALLBACKS` (default `default`; server-side fallback
   if the model declines a request; set to `off` to disable)
 - **Content:** `COURSE_NAME`, `HOST_A_NAME`, `HOST_B_NAME`, `INCLUDE_CLOSING_DISCLAIMER`
-- **Audio:** `TTS_PROVIDER=stub`, `VOICE_MAP={"A": "...", "B": "..."}`
+- **Audio:** `TTS_PROVIDER` (`stub` or `openai`), `VOICE_MAP={"A": "...", "B": "..."}`
+  (defaults to `coral`/`verse` for `openai`), `OPENAI_TTS_MODEL` (default `gpt-4o-mini-tts`),
+  `VOICE_STYLE={"A": "...", "B": "..."}` (a standing speaking style put in front of every line's
+  delivery note; by default Host B is told to sound conversational and enthusiastic)
+
+**OpenAI speech.** Set `TTS_PROVIDER=openai` and `OPENAI_API_KEY`. Each turn's delivery
+instruction is passed to the model as its speaking style. Every job also saves
+`output/<job_id>.script.json`, so an episode can be re-voiced without new LLM calls:
+`python regenerate_audio.py <job_id>` (older jobs without the JSON are parsed from the transcript).
 
 **Adding a real TTS vendor.** Subclass `TTSProvider` in `agents/audio.py`, implement
 `synthesize(text, voice_id, delivery_instruction) -> AudioSegment`, and register it in `PROVIDERS`.
@@ -199,7 +207,7 @@ input. To trade quality for cost, lower `HOST_EFFORT`, or switch `ANTHROPIC_MODE
    code rescales them proportionally. A revision can't drop a must-cover point; any dropped point is
    restored.
 8. **Prompt placeholders** are filled with a small `{{name}}` regex substitution. The prompts contain
-   literal JSON braces, which `str.format` would break on. Agent 1's "x 150" uses
+   literal JSON braces, which `str.format` would break on. Agent 1's "x words per minute" uses
    `{{words_per_minute}}` so it stays correct if the setting changes.
 9. **Long sources.** Sources over `MAX_SOURCE_CHARS` are chunked for Agent 1 and are not sent to the
    hosts; the hosts rely on the key points. Shorter sources are sent to the hosts in a cached block

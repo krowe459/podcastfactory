@@ -7,11 +7,15 @@ short pauses, and exports an mp3.
 
 from __future__ import annotations
 
+import io
 import logging
+import os
 import re
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+import httpx
 from pydub import AudioSegment
 
 from config import settings
@@ -24,8 +28,14 @@ log = logging.getLogger("podcastfactory.audio")
 # ------------------------------------------------------------------ providers
 
 
+class TTSError(RuntimeError):
+    """A readable failure from the speech provider."""
+
+
 class TTSProvider(ABC):
     name: str = "base"
+    # Longest text sent in one synthesize() call; None means settings.TTS_CHUNK_CHARS.
+    max_chunk_chars: int | None = None
 
     @abstractmethod
     def synthesize(self, text: str, voice_id: str, delivery_instruction: str) -> AudioSegment:
@@ -43,8 +53,65 @@ class StubTTSProvider(TTSProvider):
         return AudioSegment.silent(duration=max(int(seconds * 1000), 1))
 
 
-# Register real providers here, e.g. PROVIDERS["elevenlabs"] = ElevenLabsTTSProvider.
-PROVIDERS: dict[str, type[TTSProvider]] = {"stub": StubTTSProvider}
+class OpenAITTSProvider(TTSProvider):
+    """OpenAI speech endpoint. Honors delivery_instruction via the `instructions` field."""
+
+    name = "openai"
+    max_chunk_chars = 4000  # the endpoint accepts up to 4096 characters
+    URL = "https://api.openai.com/v1/audio/speech"
+
+    def __init__(self) -> None:
+        key = os.environ.get("OPENAI_API_KEY")
+        if not key:
+            raise TTSError("TTS_PROVIDER=openai needs OPENAI_API_KEY.")
+        self._client = httpx.Client(
+            timeout=httpx.Timeout(120.0, connect=15.0),
+            headers={"Authorization": f"Bearer {key}"},
+        )
+
+    def synthesize(self, text: str, voice_id: str, delivery_instruction: str) -> AudioSegment:
+        body = {
+            "model": settings.OPENAI_TTS_MODEL,
+            "voice": voice_id,
+            "input": text,
+            "response_format": "mp3",
+        }
+        if delivery_instruction:
+            body["instructions"] = delivery_instruction
+        for attempt in range(5):
+            try:
+                resp = self._client.post(self.URL, json=body)
+            except httpx.TransportError as exc:
+                if attempt == 4:
+                    raise TTSError(f"Could not reach the speech provider: {exc}") from exc
+                time.sleep(2**attempt)
+                continue
+            if resp.status_code == 200:
+                return AudioSegment.from_file(io.BytesIO(resp.content), format="mp3")
+            detail = _openai_error(resp)
+            if resp.status_code == 429 and "insufficient_quota" in detail:
+                raise TTSError("The OpenAI account has no credits left (insufficient_quota).")
+            if resp.status_code in (401, 403):
+                raise TTSError("OpenAI rejected the API key. Check OPENAI_API_KEY.")
+            if resp.status_code in (429, 500, 502, 503, 504) and attempt < 4:
+                time.sleep(2**attempt)
+                continue
+            raise TTSError(f"OpenAI speech request failed ({resp.status_code}): {detail}")
+        raise TTSError("OpenAI speech request failed after retries.")
+
+
+def _openai_error(resp: httpx.Response) -> str:
+    try:
+        err = resp.json().get("error", {})
+        return f"{err.get('type') or err.get('code') or ''}: {err.get('message', '')}".strip(": ")
+    except ValueError:
+        return resp.text[:300]
+
+
+PROVIDERS: dict[str, type[TTSProvider]] = {
+    "stub": StubTTSProvider,
+    "openai": OpenAITTSProvider,
+}
 
 
 def get_provider(name: str | None = None) -> TTSProvider:
@@ -195,16 +262,25 @@ def chunk_for_tts(text: str, limit: int | None = None) -> list[str]:
 # ------------------------------------------------------------------- pipeline
 
 
+def combine_delivery(style: str, note: str) -> str:
+    """Host's standing style first, then this line's note."""
+    style, note = style.strip(), note.strip()
+    if style and note:
+        return f"{style.rstrip('.')}. For this line: {note}"
+    return style or note
+
+
 def produce_audio(turns: list[DialogueTurn], job_id: str, provider: TTSProvider | None = None) -> Path:
     provider = provider or get_provider()
     pause = AudioSegment.silent(duration=settings.TURN_PAUSE_MS)
     episode = AudioSegment.silent(duration=0)
     for i, turn in enumerate(turns):
         voice = settings.VOICE_MAP[turn.host]
+        delivery = combine_delivery(settings.VOICE_STYLE.get(turn.host, ""), turn.delivery_instruction)
         spoken = normalize_for_speech(turn.text)
         segment = AudioSegment.silent(duration=0)
-        for chunk in chunk_for_tts(spoken):
-            segment += provider.synthesize(chunk, voice, turn.delivery_instruction)
+        for chunk in chunk_for_tts(spoken, provider.max_chunk_chars):
+            segment += provider.synthesize(chunk, voice, delivery)
         if i:
             episode += pause
         episode += segment
