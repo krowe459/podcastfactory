@@ -332,3 +332,14 @@ def test_strict_alternation_keeps_scripts_near_budget(monkeypatch):
     budget = sum(s.word_budget for s in orch.plan.sections)
     assert total <= (1 + settings.DURATION_TOLERANCE) * budget, f"{total} words vs {budget} budget"
     _assert_strict_alternation(orch)
+
+
+def test_turn_length_rules_match_the_enforced_limits():
+    from agents import hosts
+
+    prompt = hosts.system_prompt("A", "CHARTER")
+    assert f"Turns are {hosts.MIN_TURN_WORDS}-{hosts.MAX_TURN_WORDS} words." in prompt
+    assert f"Most should be {hosts.TYPICAL_TURN_WORDS}." in prompt
+    assert "{{" not in prompt
+    lo, hi = (int(x) for x in hosts.TYPICAL_TURN_WORDS.split("-"))
+    assert hosts.MIN_TURN_WORDS <= lo < hi <= hosts.MAX_TURN_WORDS

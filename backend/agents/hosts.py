@@ -14,8 +14,11 @@ from textutil import count_words
 
 log = logging.getLogger("podcastfactory.hosts")
 
+# Short turns keep the dialogue quick and let each section's length be adjusted in small steps.
+# (Sections alternate A/B, so their length moves two turns at a time.)
 MIN_TURN_WORDS = 15
-MAX_TURN_WORDS = 90
+MAX_TURN_WORDS = 65
+TYPICAL_TURN_WORDS = "25-45"
 MAX_LENGTH_ATTEMPTS = 3
 
 
@@ -34,7 +37,13 @@ class TurnRequest:
 
 def system_prompt(speaker: str, charter: str) -> str:
     host_block = prompts.HOST_A_GUIDE if speaker == "A" else prompts.HOST_B_ANALYST
-    parts = [charter, prompts.SCRIPT_RULES, host_block]
+    rules = prompts.fill(
+        prompts.SCRIPT_RULES,
+        min_turn_words=MIN_TURN_WORDS,
+        max_turn_words=MAX_TURN_WORDS,
+        typical_turn_words=TYPICAL_TURN_WORDS,
+    )
+    parts = [charter, rules, host_block]
     if settings.HOST_A_NAME and settings.HOST_B_NAME:
         parts.append(
             prompts.fill(

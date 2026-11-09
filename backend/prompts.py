@@ -125,7 +125,7 @@ WRITE FOR THE EAR
 
 - No bullet points, headings, markdown, parenthetical asides, or visible citations. Attribute naturally: "The authors argue...", "In the study they describe...".
 
-- Turns are 15-90 words. Most should be 25-60. Use the longer end only to explain a framework or a piece of evidence. Never monologue.
+- Turns are {{min_turn_words}}-{{max_turn_words}} words. Most should be {{typical_turn_words}}. Use the longer end only to explain a framework or a piece of evidence. Never monologue; if a point needs more, make it in two turns.
 
 - No filler praise ("Great question!") and no restating what was just said. Every turn must add something new: a fact, a question, a distinction, an example, or an implication.
 
