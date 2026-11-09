@@ -64,7 +64,7 @@ def _voice_style() -> dict[str, str]:
 @dataclass
 class Settings:
     # Pipeline
-    WORDS_PER_MINUTE: int = field(default_factory=lambda: _int("WORDS_PER_MINUTE", 135))
+    WORDS_PER_MINUTE: int = field(default_factory=lambda: _int("WORDS_PER_MINUTE", 150))
     DURATION_TOLERANCE: float = field(default_factory=lambda: _float("DURATION_TOLERANCE", 0.10))
     MAX_REVISIONS: int = field(default_factory=lambda: _int("MAX_REVISIONS", 2))
     MAX_SOURCE_CHARS: int = field(default_factory=lambda: _int("MAX_SOURCE_CHARS", 120000))
@@ -100,8 +100,9 @@ class Settings:
     VOICE_STYLE: dict[str, str] = field(default_factory=_voice_style)
     OPENAI_TTS_MODEL: str = field(default_factory=lambda: _str("OPENAI_TTS_MODEL", "gpt-4o-mini-tts"))
     # Speaking-rate multiplier sent to OpenAI (0.25-4.0). At 1.0 the voices run about
-    # 133 words per minute; raise it when WORDS_PER_MINUTE is set higher (e.g. 1.13 for 150).
-    OPENAI_TTS_SPEED: float = field(default_factory=lambda: _float("OPENAI_TTS_SPEED", 1.0))
+    # 133 words per minute; the default 1.13 matches WORDS_PER_MINUTE=150 (measured 148-156).
+    # Change the two together.
+    OPENAI_TTS_SPEED: float = field(default_factory=lambda: _float("OPENAI_TTS_SPEED", 1.13))
     TURN_PAUSE_MS: int = 350
     TTS_CHUNK_CHARS: int = 400
 

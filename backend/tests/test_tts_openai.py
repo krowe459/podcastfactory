@@ -77,7 +77,14 @@ def test_speed_sent_only_when_set(monkeypatch):
         return httpx.Response(200, content=_mp3_bytes())
 
     p = _provider(monkeypatch, handler)
+    monkeypatch.setattr(audio.settings, "OPENAI_TTS_SPEED", 1.0)
     p.synthesize("Hi.", "ash", "")
     monkeypatch.setattr(audio.settings, "OPENAI_TTS_SPEED", 1.13)
     p.synthesize("Hi.", "ash", "")
     assert "speed" not in bodies[0] and bodies[1]["speed"] == 1.13
+
+
+def test_default_pace_is_150():
+    from config import Settings
+    s = Settings()
+    assert s.WORDS_PER_MINUTE == 150 and s.OPENAI_TTS_SPEED == 1.13
