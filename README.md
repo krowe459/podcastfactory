@@ -149,7 +149,7 @@ sends `: keep-alive` comments every 15 s.
 
 All settings are in `backend/config.py` and can be overridden in `backend/.env` (see `.env.example`).
 
-- **Pipeline:** `WORDS_PER_MINUTE=135`, `DURATION_TOLERANCE=0.10`, `MAX_REVISIONS=2`,
+- **Pipeline:** `WORDS_PER_MINUTE=150`, `DURATION_TOLERANCE=0.10`, `MAX_REVISIONS=2`,
   `MAX_SOURCE_CHARS=120000`, `CHUNK_CHARS=30000`, `MAX_TURNS_PER_SECTION=30`,
   `INCLUDE_SOURCE_IN_HOST_CONTEXT=true`
 - **LLM:** `ANTHROPIC_MODEL` (default `claude-opus-5-5`), `PRODUCER_EFFORT` (default `high`),
@@ -158,7 +158,7 @@ All settings are in `backend/config.py` and can be overridden in `backend/.env` 
 - **Content:** `COURSE_NAME`, `HOST_A_NAME`, `HOST_B_NAME`, `INCLUDE_CLOSING_DISCLAIMER`
 - **Audio:** `TTS_PROVIDER` (`stub` or `openai`), `VOICE_MAP={"A": "...", "B": "..."}`
   (defaults to `coral`/`verse` for `openai`), `OPENAI_TTS_MODEL` (default `gpt-4o-mini-tts`), `OPENAI_TTS_SPEED`
-  (default `1.0`, about 133 words per minute; set about `1.13` if `WORDS_PER_MINUTE=150`),
+  (default `1.13`, about 150 words per minute to match `WORDS_PER_MINUTE`; `1.0` is about 133),
   `VOICE_STYLE={"A": "...", "B": "..."}` (a standing speaking style put in front of every line's
   delivery note; by default Host B is told to sound conversational and enthusiastic)
 
