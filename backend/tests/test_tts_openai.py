@@ -67,3 +67,17 @@ def test_combine_delivery():
     assert audio.combine_delivery("Enthusiastic.", "measured") == "Enthusiastic. For this line: measured"
     assert audio.combine_delivery("", "measured") == "measured"
     assert audio.combine_delivery("Lively", "") == "Lively"
+
+
+def test_speed_sent_only_when_set(monkeypatch):
+    bodies = []
+
+    def handler(request):
+        bodies.append(__import__("json").loads(request.content))
+        return httpx.Response(200, content=_mp3_bytes())
+
+    p = _provider(monkeypatch, handler)
+    p.synthesize("Hi.", "ash", "")
+    monkeypatch.setattr(audio.settings, "OPENAI_TTS_SPEED", 1.13)
+    p.synthesize("Hi.", "ash", "")
+    assert "speed" not in bodies[0] and bodies[1]["speed"] == 1.13

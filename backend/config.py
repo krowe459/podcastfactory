@@ -99,6 +99,9 @@ class Settings:
     VOICE_MAP: dict[str, str] = field(default_factory=_voice_map)
     VOICE_STYLE: dict[str, str] = field(default_factory=_voice_style)
     OPENAI_TTS_MODEL: str = field(default_factory=lambda: _str("OPENAI_TTS_MODEL", "gpt-4o-mini-tts"))
+    # Speaking-rate multiplier sent to OpenAI (0.25-4.0). At 1.0 the voices run about
+    # 133 words per minute; raise it when WORDS_PER_MINUTE is set higher (e.g. 1.13 for 150).
+    OPENAI_TTS_SPEED: float = field(default_factory=lambda: _float("OPENAI_TTS_SPEED", 1.0))
     TURN_PAUSE_MS: int = 350
     TTS_CHUNK_CHARS: int = 400
 
