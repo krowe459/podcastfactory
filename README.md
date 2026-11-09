@@ -204,9 +204,12 @@ input. To trade quality for cost, lower `HOST_EFFORT`, or switch `ANTHROPIC_MODE
    - The orchestrator decides the speaker, never the model.
 5. **Closing turns.** Every section ends with an explicit closing turn. In non-final sections it is a
    bridge to the next section's title. In the outro it closes the episode. Section end checks reserve
-   about 35 words for that turn.
-6. **Turn length.** A turn outside 15-90 words is regenerated up to 3 times. If it is still out of
-   range, it is kept, and a warning is added to the coverage report instead of failing the episode.
+   room for every turn still needed to close, each sized like the section's turns so far (at least
+   35 words).
+6. **Turn length.** A turn outside 15-65 words is regenerated up to 3 times; most should be 25-45.
+   Short turns keep the dialogue quick and let a section's length be adjusted in small steps. If a
+   turn is still out of range, it is kept, and a warning is added to the coverage report instead of
+   failing the episode.
 7. **Plan arithmetic.** If Agent 1 still gets the word budgets wrong after 2 correction requests, the
    code rescales them proportionally. A revision can't drop a must-cover point; any dropped point is
    restored.
