@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".txt", ".md"}
@@ -103,23 +104,83 @@ def _page_markers(reader, page_texts: list[str]) -> list[str]:
     return markers
 
 
-def _parse_pdf(data: bytes) -> str:
+@dataclass
+class PdfPage:
+    index: int  # 0-based position in the PDF
+    marker: str  # e.g. "[Page 18]", matching the markers in the source text
+    text: str
+    image_ids: frozenset[int]  # object ids of images drawn on the page
+
+
+def _open_pdf(data: bytes):
     from pypdf import PdfReader
 
+    reader = PdfReader(io.BytesIO(data))
+    if reader.is_encrypted:
+        try:
+            reader.decrypt("")
+        except Exception as exc:  # noqa: BLE001
+            raise InputError("This PDF is password-protected.") from exc
+    return reader
+
+
+_MIN_FIGURE_PX = 100  # smaller images are icons, bullets, or logos
+
+
+def _page_image_ids(resources, seen: set[int] | None = None) -> set[int]:
+    """Object ids of the images a page draws, including images nested in form XObjects."""
+    seen = set() if seen is None else seen
+    found: set[int] = set()
     try:
-        reader = PdfReader(io.BytesIO(data))
-        if reader.is_encrypted:
-            try:
-                reader.decrypt("")
-            except Exception as exc:  # noqa: BLE001
-                raise InputError("This PDF is password-protected.") from exc
+        xobjects = (resources or {}).get("/XObject")
+        if not xobjects:
+            return found
+        for ref in xobjects.get_object().values():
+            obj = ref.get_object()
+            idnum = getattr(ref, "idnum", None) or id(obj)
+            subtype = obj.get("/Subtype")
+            if subtype == "/Image":
+                if min(int(obj.get("/Width", 0)), int(obj.get("/Height", 0))) >= _MIN_FIGURE_PX:
+                    found.add(idnum)
+            elif subtype == "/Form" and idnum not in seen:
+                seen.add(idnum)
+                found |= _page_image_ids(obj.get("/Resources"), seen)
+    except Exception:  # noqa: BLE001  (a malformed resource dict just means "no images found")
+        pass
+    return found
+
+
+def pdf_pages(data: bytes) -> tuple[object, list[PdfPage]]:
+    """The reader and per-page text, markers, and image ids. Raises InputError on bad PDFs."""
+    try:
+        reader = _open_pdf(data)
         texts = [_fix_glyph_names(page.extract_text() or "").strip() for page in reader.pages]
         markers = _page_markers(reader, texts)
-        parts = [f"{marker}\n{text}" for marker, text in zip(markers, texts) if text]
+        pages = [
+            PdfPage(i, marker, text, frozenset(_page_image_ids(page.get("/Resources"))))
+            for i, (page, marker, text) in enumerate(zip(reader.pages, markers, texts))
+        ]
     except InputError:
         raise
     except Exception as exc:  # noqa: BLE001
         raise InputError(f"Could not read the PDF: {exc}") from exc
+    return reader, pages
+
+
+FIGURE_NOTE_HEADER = "[Figure content on this page, transcribed by AI from the page image]"
+
+
+def _parse_pdf(data: bytes, figure_notes: dict[int, str] | None = None) -> str:
+    _, pages = pdf_pages(data)
+    notes = figure_notes or {}
+    parts = []
+    for page in pages:
+        body = page.text
+        note = notes.get(page.index, "").strip()
+        if note:
+            body = f"{body}\n{FIGURE_NOTE_HEADER}\n{note}" if body else f"{FIGURE_NOTE_HEADER}\n{note}"
+        if body:
+            parts.append(f"{page.marker}\n{body}")
     text = "\n\n".join(parts)
     if not text.strip():
         raise InputError(
@@ -196,7 +257,8 @@ def _decode(data: bytes) -> str:
     return data.decode("latin-1")
 
 
-def parse_upload(filename: str, data: bytes) -> str:
+def parse_upload(filename: str, data: bytes, figure_notes: dict[int, str] | None = None) -> str:
+    """figure_notes: PDF only; 0-based page index -> transcription of that page's figures."""
     ext = Path(filename or "").suffix.lower()
     if ext not in SUPPORTED_EXTENSIONS:
         raise InputError(
@@ -205,7 +267,7 @@ def parse_upload(filename: str, data: bytes) -> str:
     if not data:
         raise InputError("The uploaded file is empty.")
     if ext == ".pdf":
-        text = _parse_pdf(data)
+        text = _parse_pdf(data, figure_notes)
     elif ext == ".docx":
         text = _parse_docx(data)
     elif ext == ".pptx":
@@ -215,10 +277,15 @@ def parse_upload(filename: str, data: bytes) -> str:
     return _clean(text)
 
 
-def build_source_text(filename: str | None, data: bytes | None, pasted: str | None) -> str:
+def build_source_text(
+    filename: str | None,
+    data: bytes | None,
+    pasted: str | None,
+    figure_notes: dict[int, str] | None = None,
+) -> str:
     parts: list[str] = []
     if filename and data is not None:
-        parts.append(parse_upload(filename, data))
+        parts.append(parse_upload(filename, data, figure_notes))
     if pasted and pasted.strip():
         parts.append(_clean(pasted))
     text = "\n\n".join(p for p in parts if p)

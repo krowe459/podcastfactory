@@ -107,15 +107,23 @@ def call_structured(
     cached_prefix: Optional[str] = None,
     effort: Optional[str] = None,
     max_tokens: int = 16000,
+    attachments: Optional[list[dict]] = None,
 ) -> T:
     """Request JSON only, validate with Pydantic, and retry with the error fed back.
 
     cached_prefix: optional large, stable text (e.g. the source reading) sent
     as the first user content block with a cache breakpoint, so repeated
     calls over the same source are served from the prompt cache.
+    attachments: optional content blocks (e.g. a base64 PDF "document" block)
+    placed before the prompt; the last one gets a cache breakpoint so
+    validation retries do not pay for them again.
     """
     effort = effort or settings.PRODUCER_EFFORT
     base: list[dict] = []
+    if attachments:
+        blocks = [dict(b) for b in attachments]
+        blocks[-1]["cache_control"] = {"type": "ephemeral"}
+        base.extend(blocks)
     if cached_prefix:
         base.append(
             {"type": "text", "text": cached_prefix, "cache_control": {"type": "ephemeral"}}

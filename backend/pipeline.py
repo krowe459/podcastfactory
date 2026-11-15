@@ -45,6 +45,7 @@ class JobInput:
     target_minutes: int
     topic_focus: str = ""
     course_name: str = ""
+    warnings: list[str] = field(default_factory=list)  # from parsing, shown in the coverage report
 
 
 class Emitter:
@@ -81,7 +82,7 @@ class Orchestrator:
     def __init__(self, job: JobInput, emit: Emitter):
         self.job = job
         self.emit = emit
-        self.warnings: list[str] = []
+        self.warnings: list[str] = list(job.warnings)
         self.charter = prompts.fill(
             prompts.CHARTER,
             course_name=job.course_name or settings.COURSE_NAME,

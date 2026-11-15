@@ -162,6 +162,17 @@ All settings are in `backend/config.py` and can be overridden in `backend/.env` 
   `VOICE_STYLE={"A": "...", "B": "..."}` (a standing speaking style put in front of every line's
   delivery note; by default Host B is told to sound conversational and enthusiastic)
 
+**Diagrams and charts in PDFs.** Text extraction cannot see figures, so before planning, the
+backend finds the PDF pages that draw a figure (images that repeat on most pages, such as slide
+backgrounds and logos, are ignored) or carry fewer than `FIGURE_LOW_TEXT_WORDS` words. It sends
+those pages to the model as a small PDF, in batches of `FIGURE_PAGES_PER_CALL`, and adds the
+transcription of each page under that page's marker in the source text, labelled as transcribed
+from the page image. This is one extra model call per batch, before the episode starts; the rest
+of the pipeline is unchanged. Image-only PDFs (scans) can now be read as well, up to
+`FIGURE_MAX_PAGES` pages. If figure reading fails, the episode is made from the text alone and
+the coverage report says which pages were skipped. Set `READ_PDF_FIGURES=false` to turn it off.
+Code: `backend/figures.py`.
+
 **OpenAI speech.** Set `TTS_PROVIDER=openai` and `OPENAI_API_KEY`. Each turn's delivery
 instruction is passed to the model as its speaking style. Every job also saves
 `output/<job_id>.script.json`, so an episode can be re-voiced without new LLM calls:
