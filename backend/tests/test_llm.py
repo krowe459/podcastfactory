@@ -78,3 +78,15 @@ def test_refusal_is_readable_error(monkeypatch):
     monkeypatch.setattr(llm, "_client", FakeClient([""], stop_reason="refusal"))
     with pytest.raises(llm.LLMError, match="declined"):
         llm.call_structured("s", "u", HostTurnOutput)
+
+
+def test_attachments_go_first_and_are_cached(monkeypatch):
+    fake = FakeClient([GOOD])
+    monkeypatch.setattr(llm, "_client", fake)
+    doc = {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": "AA=="}}
+    llm.call_structured("s", "u", HostTurnOutput, attachments=[doc])
+    content = fake.requests[0]["messages"][0]["content"]
+    assert content[0]["type"] == "document"
+    assert content[0]["cache_control"] == {"type": "ephemeral"}
+    assert content[-1]["text"] == "u"
+    assert "cache_control" not in doc  # the caller's block is not mutated

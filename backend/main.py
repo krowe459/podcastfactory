@@ -19,7 +19,8 @@ from fastapi.staticfiles import StaticFiles
 
 from config import settings
 from contracts import ErrorData, StreamEvent
-from parsing import InputError, build_source_text
+from figures import describe_pdf_figures
+from parsing import InputError, build_source_text, pdf_pages
 from pipeline import Cancelled, JobInput, run_job
 from transcript import transcript_path
 
@@ -87,7 +88,22 @@ async def generate_podcast(
                     minutes = int(str(target_minutes or "10").strip())
                 except ValueError as exc:
                     raise InputError("target_minutes must be a whole number of minutes.") from exc
-                source = build_source_text(filename, data, text)
+                warnings: list[str] = []
+                notes: dict[int, str] = {}
+                if filename and data and filename.lower().endswith(".pdf") and settings.READ_PDF_FIGURES:
+                    pdf_pages(data)  # report an unreadable PDF before spending a model call
+                    sink(StreamEvent(
+                        status="extracting_facts",
+                        message="Reading the diagrams and charts in the PDF...",
+                        progress=2,
+                    ))
+                    figures = describe_pdf_figures(data)
+                    notes, warnings = figures.notes, figures.warnings
+                    log.info(
+                        "Job %s: read figures on %d pages, %d with content",
+                        job_id, figures.pages_sent, len(notes),
+                    )
+                source = build_source_text(filename, data, text, figure_notes=notes)
             except InputError as exc:
                 sink(_error_event(str(exc)))
                 return
@@ -99,6 +115,7 @@ async def generate_podcast(
                     target_minutes=minutes,
                     topic_focus=topic_focus or "",
                     course_name=course_name or "",
+                    warnings=warnings,
                 ),
                 sink,
             )

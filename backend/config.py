@@ -76,6 +76,15 @@ class Settings:
     MIN_TARGET_MINUTES: int = 5
     MAX_TARGET_MINUTES: int = 30
     MAX_UPLOAD_MB: int = field(default_factory=lambda: _int("MAX_UPLOAD_MB", 25))
+    # PDF figures: pages with diagrams, charts, or little extractable text are sent to the
+    # model as page images once, and its transcription is added to the source text.
+    READ_PDF_FIGURES: bool = field(default_factory=lambda: _bool("READ_PDF_FIGURES", True))
+    FIGURE_MAX_PAGES: int = field(default_factory=lambda: _int("FIGURE_MAX_PAGES", 60))
+    FIGURE_PAGES_PER_CALL: int = field(default_factory=lambda: _int("FIGURE_PAGES_PER_CALL", 20))
+    # Pages with fewer extracted words than this are read as images even with no figure found
+    # (vector diagrams, scanned pages).
+    FIGURE_LOW_TEXT_WORDS: int = field(default_factory=lambda: _int("FIGURE_LOW_TEXT_WORDS", 20))
+    FIGURE_EFFORT: str = field(default_factory=lambda: _str("FIGURE_EFFORT", "medium"))
 
     # LLM
     ANTHROPIC_MODEL: str = field(default_factory=lambda: _str("ANTHROPIC_MODEL", "claude-opus-5-5"))
