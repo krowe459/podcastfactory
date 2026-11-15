@@ -362,6 +362,8 @@ class Orchestrator:
         covered = {c for t in script for c in t.covers if c in valid_ids}
         must = [k for s in self.plan.sections for k in s.key_points if k.priority == "must_cover"]
         missing = [k for k in must if k.id not in covered]
+        should = [k for s in self.plan.sections for k in s.key_points if k.priority == "should_cover"]
+        skipped = [k for k in should if k.id not in covered]
         per_section = {s.id: self._section_words(s.id) for s in self.plan.sections}
         total = sum(per_section.values())
         warnings = list(self.warnings)
@@ -376,6 +378,9 @@ class Orchestrator:
             must_cover_hit=len(must) - len(missing),
             missing_ids=[k.id for k in missing],
             missing_points={k.id: k.text for k in missing},
+            should_cover_total=len(should),
+            should_cover_hit=len(should) - len(skipped),
+            skipped_points={k.id: k.text for k in skipped},
             per_section_words=per_section,
             total_words=total,
             estimated_minutes=round(total / settings.WORDS_PER_MINUTE, 2),

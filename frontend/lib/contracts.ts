@@ -95,6 +95,9 @@ export interface CoverageReport {
   must_cover_hit: number;
   missing_ids: string[];
   missing_points: Record<string, string>;
+  should_cover_total: number;
+  should_cover_hit: number;
+  skipped_points: Record<string, string>;
   per_section_words: Record<string, number>;
   total_words: number;
   estimated_minutes: number;

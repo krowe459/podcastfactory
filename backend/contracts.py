@@ -133,6 +133,10 @@ class CoverageReport(_Strict):
     missing_ids: list[str]
     # id -> key point text, so the UI can list missing ideas in plain words.
     missing_points: dict[str, str] = Field(default_factory=dict)
+    # Should-cover points: how many the hosts addressed, and the text of the ones they skipped.
+    should_cover_total: int = 0
+    should_cover_hit: int = 0
+    skipped_points: dict[str, str] = Field(default_factory=dict)
     per_section_words: dict[str, int]
     total_words: int
     estimated_minutes: float
