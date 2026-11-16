@@ -99,6 +99,8 @@ def _events(response) -> list[StreamEvent]:
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "OUTPUT_DIR", tmp_path)
+    # Never call a paid speech API from tests, whatever TTS_PROVIDER the local .env sets.
+    monkeypatch.setattr(settings, "TTS_PROVIDER", "stub")
     import main
 
     return TestClient(main.app)

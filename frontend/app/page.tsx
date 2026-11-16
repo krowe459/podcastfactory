@@ -955,7 +955,11 @@ export default function Page() {
               <Stat
                 label="Coverage"
                 value={`${coverage.must_cover_hit} / ${coverage.must_cover_total}`}
-                sub="must-cover ideas addressed"
+                sub={`must-cover ideas addressed${
+                  coverage.should_cover_total
+                    ? ` · ${coverage.should_cover_hit} / ${coverage.should_cover_total} should-cover`
+                    : ""
+                }`}
                 tone={allCovered ? "good" : "warn"}
               />
               <Stat label="Script" value={coverage.total_words.toLocaleString()} sub="words" />
@@ -967,6 +971,17 @@ export default function Page() {
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-100/80">
                   {coverage.missing_ids.map((id) => (
                     <li key={id}>{coverage.missing_points[id] ?? id}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {Object.keys(coverage.skipped_points ?? {}).length > 0 && (
+              <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-sm font-medium text-zinc-200">Planned but not discussed (read these in the source):</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-400">
+                  {Object.entries(coverage.skipped_points).map(([id, text]) => (
+                    <li key={id}>{text}</li>
                   ))}
                 </ul>
               </div>
