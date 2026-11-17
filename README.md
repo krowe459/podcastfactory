@@ -5,9 +5,11 @@
 Turns an assigned reading (case study, article, book chapter, or slide deck) into a two-host
 podcast for Executive MBA students. It also reports which must-cover ideas the episode addressed.
 
-> **Prototype audio.** Speech synthesis is a stub behind a swappable `TTSProvider` interface. The
-> generated mp3 is **silent** and lasts as long as the script would take to read aloud. The UI shows a
-> "Prototype audio: silent placeholder voices" badge whenever the stub is in use. The script,
+> **Audio.** Speech goes through a swappable `TTSProvider` interface. With `TTS_PROVIDER=openai`
+> (and an `OPENAI_API_KEY`), the episode is voiced by OpenAI's text-to-speech; see
+> [OpenAI speech](#configuration). The default is a **stub** whose mp3 is **silent** and lasts as
+> long as the script would take to read aloud; the UI shows a "Prototype audio: silent placeholder
+> voices" badge whenever the stub is in use. Either way, the script,
 > transcript, and coverage report are real.
 
 ## How it works
@@ -29,7 +31,8 @@ The orchestrator in `backend/pipeline.py` runs the steps in order:
 
 Progress streams to the browser as Server-Sent Events over a `POST` request.
 
-The runtime prompts from the design document (Part C) are stored verbatim in `backend/prompts.py`.
+The runtime prompts in `backend/prompts.py` started from the design document (Part C) and have
+since been tuned, for example the turn-length rule and the hosts' opening and closing roles.
 
 ## File tree
 
@@ -43,18 +46,23 @@ podcastfactory/
 │   ├── contracts.py             # single source of truth for all shared shapes
 │   ├── config.py                # settings, all overridable by env
 │   ├── llm.py                   # call_structured(): the only LLM entry point
-│   ├── parsing.py               # PDF / DOCX / PPTX / TXT / MD to text, chunking
-│   ├── prompts.py               # runtime agent prompts (Part C), verbatim
+│   ├── parsing.py               # PDF / DOCX / PPTX / TXT / MD to text, printed page numbers, chunking
+│   ├── figures.py               # reads charts, diagrams and scanned pages in PDFs via the model
+│   ├── prompts.py               # runtime agent prompts (based on Part C)
 │   ├── transcript.py            # Markdown transcript writer
 │   ├── textutil.py              # word counting
 │   ├── agents/
 │   │   ├── producer.py          # Agent 1
 │   │   ├── hosts.py             # Agents 2 and 3
-│   │   └── audio.py             # Agent 4 + TTSProvider / StubTTSProvider
+│   │   └── audio.py             # Agent 4 + TTSProvider (stub and OpenAI)
+│   ├── regenerate_audio.py      # re-voice a finished episode without new LLM calls
 │   ├── tests/
 │   │   ├── test_contracts.py    # Python <-> TypeScript contract test
 │   │   ├── test_pipeline.py     # end-to-end with a fake LLM
-│   │   └── test_llm.py          # JSON validation / retry logic with a stubbed SDK
+│   │   ├── test_llm.py          # JSON validation / retry logic with a stubbed SDK
+│   │   ├── test_figures.py      # PDF figure page selection, merging and failure handling
+│   │   ├── test_transcript.py   # transcript references and coverage counts
+│   │   └── test_tts_openai.py   # OpenAI speech requests and errors, no network
 │   ├── requirements.txt
 │   ├── pytest.ini
 │   └── .env.example
@@ -75,6 +83,7 @@ podcastfactory/
   - Ubuntu/Debian: `sudo apt-get install -y ffmpeg`
   - Windows: `winget install ffmpeg`, or download it from ffmpeg.org and add it to `PATH`
 - An Anthropic API key
+- For spoken audio: an OpenAI API key (otherwise the episode audio is silent)
 
 ## Run the backend
 
@@ -199,7 +208,7 @@ input. To trade quality for cost, lower `HOST_EFFORT`, or switch `ANTHROPIC_MODE
    - Provider: Anthropic.
    - Host names: unset, so the hosts are "Host A" and "Host B".
    - Closing disclaimer: on.
-   - Voices: stub voice ids.
+   - Voices: stub voice ids by default; `coral` and `verse` when `TTS_PROVIDER=openai`.
    - Course name: "Executive MBA program".
 3. **`CoverageReport.missing_points`** (id → text) was added so the UI can list missed ideas in plain
    words. Both contract files include it.
@@ -230,7 +239,9 @@ input. To trade quality for cost, lower `HOST_EFFORT`, or switch `ANTHROPIC_MODE
 9. **Long sources.** Sources over `MAX_SOURCE_CHARS` are chunked for Agent 1 and are not sent to the
    hosts; the hosts rely on the key points. Shorter sources are sent to the hosts in a cached block
    at the top of each turn request, and the template's SOURCE REFERENCE slot points to it.
-10. **Scanned (image-only) PDFs** are rejected with a clear message. There is no OCR.
+10. **Scanned (image-only) PDFs** are read by the figure step (see "Diagrams and charts in PDFs"),
+    up to `FIGURE_MAX_PAGES` pages. If figure reading is off (`READ_PDF_FIGURES=false`) or fails and
+    no text remains, the upload is rejected with a clear message.
 
 ## Before students hear an episode
 
